@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "fleet": {
+      "command": "fleet-mcp",
+      "args": [
+        "--url", "https://your-fleet-instance.example.com",
+        "--token", "your-read-only-api-token"
+      ],
+      "env": {
+        "FLEET_VERIFY_SSL": "true",
+        "FLEET_TIMEOUT": "30"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{"claim_id": "claim-001", "claim": "Fleet MCP 是一套專為 Fleet Device Management (fleetdm.com) 設計的 Model Context Protocol (MCP) 伺服器", "claim_type": "fact", "verdict": "supported", "confidence": 0.95}
+{"claim_id": "claim-002", "claim": "fleet-mcp 的主要功能是設備管理、osquery 即時查詢、合規政策管理、軟體清單與漏洞追蹤", "claim_type": "fact", "verdict": "supported", "confidence": 0.95}
+{"claim_id": "claim-003", "claim": "fleet-mcp 不具備網路搜尋功能，無法搜尋網際網路或社群內容", "claim_type": "fact", "verdict": "supported", "confidence": 0.98}
+{"claim_id": "claim-004", "claim": "目前存在至少三個不同的 Fleet MCP 實作：SimplyMinimal/fleet-mcp (Python)、fleetdm/fleet (官方 Go)、karmine05/fleet-mcp (社群 Go)", "claim_type": "fact", "verdict": "supported", "confidence": 0.9}
+{"claim_id": "claim-005", "claim": "fleetctl.ai 是一個不同的產品 — AI Agent 治理平台，其 MCP 伺服器提供 32 個工具用於管理 AI Agent 集群", "claim_type": "fact", "verdict": "supported", "confidence": 0.9}
+{"claim_id": "claim-006", "claim": "SimplyMinimal/fleet-mcp (Python) 提供 80+ 個 MCP 工具，涵蓋唯讀與寫入操作", "claim_type": "fact", "verdict": "supported", "confidence": 0.9}
+{"claim_id": "claim-007", "claim": "Fleet Device Management 平台支援 macOS、iOS、Android、Windows、Linux、ChromeOS 等作業系統", "claim_type": "fact", "verdict": "supported", "confidence": 0.85}
+{"claim_id": "claim-008", "claim": "fleet-mcp 支援唯讀模式與 SELECT-only 查詢模式，預設為嚴格唯讀", "claim_type": "fact", "verdict": "supported", "confidence": 0.95}
+{"claim_id": "claim-009", "claim": "有許多專門用於網路搜尋的 MCP 伺服器，如 DuckDuckGo MCP、Brave Search MCP、Tavily MCP、Firecrawl MCP、Exa MCP 等", "claim_type": "fact", "verdict": "supported", "confidence": 0.95}
+{"claim_id": "claim-010", "claim": "fleet-mcp 可與 Claude Desktop、Cursor、Cline、Continue、Zed、Windsurf、VS Code 等多種 MCP 客戶端整合", "claim_type": "fact", "verdict": "supported", "confidence": 0.95}
+{"claim_id": "claim-011", "claim": "FleetDM 的 MCP 伺服器仍標記為實驗性功能，將在 Fleet 4.92.0 重新評估", "claim_type": "fact", "verdict": "supported", "confidence": 0.8}
+{"claim_id": "claim-012", "claim": "MCP (Model Context Protocol) 於 2026 年已成為 AI 代理連接外部工具的事實標準，被 Anthropic、OpenAI、Google 等支援", "claim_type": "fact", "verdict": "supported", "confidence": 0.9}
+{"claim_id": "claim-013", "claim": "若使用者需要網路搜尋功能，應使用專門的搜尋 MCP 伺服器（如 DuckDuckGo MCP、Brave Search MCP），而非 fleet-mcp", "claim_type": "inference", "verdict": "supported", "confidence": 0.95}
