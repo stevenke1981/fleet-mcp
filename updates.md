@@ -26,6 +26,7 @@
 - [x] 修正 rustfmt、rustdoc、clippy、test、release build 品質閘門。
 - [x] 增加 `.env.example`、MIT `LICENSE`、正確 `.gitignore`、Cargo.lock 追蹤與 GitHub Actions。
 - [x] 修正 repository URL、CI badge、安裝與設定文件，避免指向無關的既有 Python 專案。
+- [x] CI 在所有 branch push/PR 自動編譯；version tag 自動打包 Linux、Windows、macOS archives、SHA-256 checksums 並建立 GitHub Release。
 
 ## P2 — 後續增強（不阻擋 v0.1.0）
 

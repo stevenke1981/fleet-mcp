@@ -24,6 +24,7 @@
 - `src/fleet/types.rs`: response envelopes and Fleet payload types.
 - `src/handler.rs`: MCP tool router; public tool names are compatibility API.
 - `.github/workflows/ci.yml`: automatic push/PR/manual CI and release artifacts.
+- `.github/workflows/release.yml`: version-tag release packaging and GitHub Release upload.
 
 ## Key Conventions
 
@@ -33,6 +34,7 @@
 - Do not reflect untrusted upstream error bodies into model-facing responses.
 - Preserve the 14-tool public names unless the README, spec, tests, and migration notes are updated together.
 - Keep `.codebase-memory/`, `.opencode/`, `target/`, and credentials out of Git.
+- Release tags must exactly match `Cargo.toml` (`v` + package version); release archives must include a checksum.
 - Use `apply_patch` for focused edits; preserve unrelated worktree changes.
 
 ## Commit Attribution

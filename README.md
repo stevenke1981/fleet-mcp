@@ -21,6 +21,20 @@ The binary is written to `target/release/fleet-mcp` on Linux/macOS and `target/r
 
 GitHub Actions automatically checks every branch push and pull request, builds release binaries for Linux, Windows, and macOS, and publishes them as workflow artifacts. You can also start the workflow manually from the **Actions → CI → Run workflow** menu.
 
+## Install a released version
+
+Version tags matching `v*` start the [Release workflow](.github/workflows/release.yml). It verifies that the tag matches `Cargo.toml`, runs the quality gates, builds each supported runner, packages the binary with this README and the MIT license, and publishes SHA-256 checksums to a GitHub Release.
+
+Download the archive for your operating system from [Releases](https://github.com/stevenke1981/fleet-mcp/releases), verify its `.sha256` file, extract it, and place the binary on your `PATH`. The archives are portable and do not require Rust.
+
+For a source install, use:
+
+```bash
+cargo install --git https://github.com/stevenke1981/fleet-mcp --tag v0.1.0 --locked
+```
+
+To publish a new version, update `version` in `Cargo.toml`, commit and push the matching tag (for example `v0.2.0`). The release workflow also supports manually packaging an existing tag from GitHub Actions.
+
 ## Configuration
 
 Set configuration through CLI arguments or environment variables. Use a Fleet API token with only the permissions needed for these read-only endpoints.

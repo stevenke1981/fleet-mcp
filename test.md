@@ -12,6 +12,10 @@ cargo build --release --locked
 cargo publish --dry-run --locked
 ```
 
+## Release workflow
+
+Pushing a tag such as `v0.1.0` starts `.github/workflows/release.yml`. It validates the tag/version match, reruns format/lint/test/package gates, builds Linux/Windows/macOS archives, creates SHA-256 files, and uploads them to a GitHub Release. A tag must be pushed only after the matching `Cargo.toml` version is committed.
+
 執行文件檢查時設定 `RUSTDOCFLAGS=-Dwarnings`。目前單元與 HTTP contract tests 位於 `src/fleet/client.rs`，使用 loopback TCP mock 驗證：
 
 - Fleet 官方 hosts/reports/policies/software/vulnerabilities routes。
