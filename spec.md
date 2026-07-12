@@ -1,4 +1,4 @@
-# Fleet MCP v0.1.0 規格
+# Fleet MCP v0.1.1 規格
 
 ## 範圍
 

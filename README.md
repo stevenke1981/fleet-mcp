@@ -30,7 +30,7 @@ Download the archive for your operating system from [Releases](https://github.co
 For a source install, use:
 
 ```bash
-cargo install --git https://github.com/stevenke1981/fleet-mcp --tag v0.1.0 --locked
+cargo install --git https://github.com/stevenke1981/fleet-mcp --tag v0.1.1 --locked
 ```
 
 To publish a new version, update `version` in `Cargo.toml`, commit and push the matching tag (for example `v0.2.0`). The release workflow also supports manually packaging an existing tag from GitHub Actions.
@@ -146,7 +146,7 @@ Contract tests use a local mock HTTP server and verify official Fleet routes, re
 
 ## Status and scope
 
-This is version `0.1.0`. See [updates.md](updates.md) for the completed hardening work and the remaining non-blocking roadmap. A real Fleet deployment is still required for environment-specific compatibility testing.
+This is version `0.1.1`. See [updates.md](updates.md) for the completed hardening work and the remaining non-blocking roadmap. A real Fleet deployment is still required for environment-specific compatibility testing.
 
 ## License
 

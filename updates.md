@@ -32,8 +32,9 @@
 - [x] 將 request timeout 預設降至 15 秒、上限 60 秒，加入 `MCP_TOOL_TIMEOUT` alias 與明確 timeout 錯誤；遠端 TLS 不得關閉驗證。
 - [x] 驗證 CVE path identifier，拒絕路徑/查詢注入；新增 Python 安裝器合併 Claude Desktop/Cursor 設定並預設使用 token placeholder。
 - [x] 將 tracing 輸出改寫 stderr，避免污染 stdio MCP 的 stdout JSON-RPC stream。
+- [x] 將安全修正版版本升級為 `0.1.1`，準備以 matching tag 發行最新 binaries。
 
-## P2 — 後續增強（不阻擋 v0.1.0）
+## P2 — 後續增強（不阻擋 v0.1.1）
 
 - [x] MCP stdio acceptance：initialize、tools/list；上游/serialization failure 使用 MCP `is_error` result。
 - [x] 所有 list tool 加入一致的 page/per_page/meta，並限制單次回應大小。
