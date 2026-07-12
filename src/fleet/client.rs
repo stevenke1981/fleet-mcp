@@ -1,14 +1,19 @@
 use crate::config::CliConfig;
 use crate::fleet::types::*;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use reqwest::Client as HttpClient;
 use std::time::Duration;
+
+pub const DEFAULT_PAGE_SIZE: u64 = 20;
+pub const MAX_PAGE_SIZE: u64 = 50;
+pub const MAX_REPORT_RESULTS: usize = 50;
 
 /// A strongly-typed Fleet REST API client.
 #[derive(Clone)]
 pub struct FleetClient {
     http: HttpClient,
     base_url: String,
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for FleetClient {
@@ -16,6 +21,7 @@ impl std::fmt::Debug for FleetClient {
         formatter
             .debug_struct("FleetClient")
             .field("base_url", &self.base_url)
+            .field("timeout", &self.timeout)
             .finish_non_exhaustive()
     }
 }
@@ -45,12 +51,19 @@ impl FleetClient {
         Ok(Self {
             http: client,
             base_url: config.fleet_url.trim().trim_end_matches('/').to_string(),
+            timeout: Duration::from_secs(config.timeout_secs),
         })
     }
 
     /// Create an in-memory client for testing.
     #[cfg(test)]
     pub fn new_test(base_url: &str, api_token: &str) -> Self {
+        Self::new_test_with_timeout(base_url, api_token, Duration::from_secs(5))
+    }
+
+    /// Create an in-memory client with a custom timeout for timeout tests.
+    #[cfg(test)]
+    pub fn new_test_with_timeout(base_url: &str, api_token: &str, timeout: Duration) -> Self {
         let mut headers = reqwest::header::HeaderMap::new();
         let auth_value = format!("Bearer {api_token}");
         headers.insert(reqwest::header::AUTHORIZATION, auth_value.parse().unwrap());
@@ -61,13 +74,14 @@ impl FleetClient {
 
         let client = HttpClient::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(5))
+            .timeout(timeout)
             .build()
             .unwrap();
 
         Self {
             http: client,
             base_url: base_url.trim_end_matches('/').to_string(),
+            timeout,
         }
     }
 
@@ -79,14 +93,49 @@ impl FleetClient {
         format!("{}/api/v1/fleet{}", self.base_url, path)
     }
 
+    pub(crate) fn normalize_pagination(
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<(u64, u64)> {
+        let page = page.unwrap_or(1);
+        let per_page = per_page.unwrap_or(DEFAULT_PAGE_SIZE);
+        if page == 0 {
+            anyhow::bail!("page must be greater than zero");
+        }
+        if per_page == 0 || per_page > MAX_PAGE_SIZE {
+            anyhow::bail!("per_page must be between 1 and {MAX_PAGE_SIZE}");
+        }
+        Ok((page, per_page))
+    }
+
+    fn limit_results<T>(mut values: Vec<T>, per_page: u64) -> Vec<T> {
+        values.truncate(per_page as usize);
+        values
+    }
+
+    /// Execute a GET-only request. There are intentionally no POST, PUT,
+    /// PATCH, or DELETE helpers in this client, enforcing the server's
+    /// read-only security boundary at the API layer.
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = self.api_url(path);
-        let response = self
-            .http
-            .get(&url)
-            .send()
+        let response_result = tokio::time::timeout(self.timeout, self.http.get(&url).send())
             .await
-            .context("Fleet API GET request failed")?;
+            .map_err(|_| {
+                anyhow!(
+                    "Fleet API GET request timed out after {} ms",
+                    self.timeout.as_millis()
+                )
+            })?;
+        let response = match response_result {
+            Ok(response) => response,
+            Err(error) if error.is_timeout() => {
+                anyhow::bail!(
+                    "Fleet API GET request timed out after {} ms",
+                    self.timeout.as_millis()
+                )
+            }
+            Err(error) => return Err(error).context("Fleet API GET request failed"),
+        };
 
         if !response.status().is_success() {
             let status = response.status();
@@ -97,9 +146,14 @@ impl FleetClient {
             );
         }
 
-        response
-            .json::<T>()
+        tokio::time::timeout(self.timeout, response.json::<T>())
             .await
+            .map_err(|_| {
+                anyhow!(
+                    "Fleet API response timed out after {} ms",
+                    self.timeout.as_millis()
+                )
+            })?
             .context("Fleet API returned an unexpected JSON response")
     }
 
@@ -117,6 +171,7 @@ impl FleetClient {
         page: Option<u64>,
         per_page: Option<u64>,
     ) -> Result<Vec<Host>> {
+        let (page, per_page) = Self::normalize_pagination(page, per_page)?;
         let mut params = vec![];
         if let Some(q) = query {
             params.push(format!("query={}", urlencoding(q)));
@@ -130,12 +185,8 @@ impl FleetClient {
         if let Some(t) = team_id {
             params.push(format!("team_id={t}"));
         }
-        if let Some(p) = page {
-            params.push(format!("page={p}"));
-        }
-        if let Some(p) = per_page {
-            params.push(format!("per_page={p}"));
-        }
+        params.push(format!("page={page}"));
+        params.push(format!("per_page={per_page}"));
 
         let query_string = if params.is_empty() {
             String::new()
@@ -146,7 +197,7 @@ impl FleetClient {
         let resp = self
             .get::<HostsResponse>(&format!("/hosts{query_string}"))
             .await?;
-        Ok(resp.hosts)
+        Ok(Self::limit_results(resp.hosts, per_page))
     }
 
     /// Get a single host by ID.
@@ -158,8 +209,19 @@ impl FleetClient {
     }
 
     /// Search hosts by a query string.
+    #[allow(dead_code)]
     pub async fn search_hosts(&self, query: &str) -> Result<Vec<Host>> {
-        self.list_hosts(Some(query), None, None, None, None, None)
+        self.search_hosts_page(query, None, None).await
+    }
+
+    /// Search hosts with an explicit bounded page.
+    pub async fn search_hosts_page(
+        &self,
+        query: &str,
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<Vec<Host>> {
+        self.list_hosts(Some(query), None, None, None, page, per_page)
             .await
     }
 
@@ -176,9 +238,21 @@ impl FleetClient {
     // -----------------------------------------------------------------------
 
     /// List all saved queries.
+    #[allow(dead_code)]
     pub async fn list_reports(&self) -> Result<Vec<Query>> {
-        let resp = self.get::<ReportsResponse>("/reports").await?;
-        Ok(resp.queries)
+        self.list_reports_page(None, None).await
+    }
+
+    pub async fn list_reports_page(
+        &self,
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<Vec<Query>> {
+        let (page, per_page) = Self::normalize_pagination(page, per_page)?;
+        let resp = self
+            .get::<ReportsResponse>(&format!("/reports?page={page}&per_page={per_page}"))
+            .await?;
+        Ok(Self::limit_results(resp.queries, per_page))
     }
 
     /// Get a single query by ID.
@@ -200,9 +274,21 @@ impl FleetClient {
     // -----------------------------------------------------------------------
 
     /// List all policies.
+    #[allow(dead_code)]
     pub async fn list_policies(&self) -> Result<Vec<Policy>> {
-        let resp = self.get::<PoliciesResponse>("/global/policies").await?;
-        Ok(resp.policies)
+        self.list_policies_page(None, None).await
+    }
+
+    pub async fn list_policies_page(
+        &self,
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<Vec<Policy>> {
+        let (page, per_page) = Self::normalize_pagination(page, per_page)?;
+        let resp = self
+            .get::<PoliciesResponse>(&format!("/global/policies?page={page}&per_page={per_page}"))
+            .await?;
+        Ok(Self::limit_results(resp.policies, per_page))
     }
 
     /// Get results for a specific policy.
@@ -218,25 +304,50 @@ impl FleetClient {
     // -----------------------------------------------------------------------
 
     /// List all software.
+    #[allow(dead_code)]
     pub async fn list_software(&self) -> Result<Vec<Software>> {
+        self.list_software_page(None, None).await
+    }
+
+    pub async fn list_software_page(
+        &self,
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<Vec<Software>> {
+        let (page, per_page) = Self::normalize_pagination(page, per_page)?;
         let resp = self
-            .get::<SoftwareTitlesResponse>("/software/titles")
+            .get::<SoftwareTitlesResponse>(&format!(
+                "/software/titles?page={page}&per_page={per_page}"
+            ))
             .await?;
-        Ok(resp.software_titles)
+        Ok(Self::limit_results(resp.software_titles, per_page))
     }
 
     /// List vulnerabilities (CVEs).
+    #[allow(dead_code)]
     pub async fn list_vulnerabilities(&self) -> Result<Vec<Vulnerability>> {
+        self.list_vulnerabilities_page(None, None).await
+    }
+
+    pub async fn list_vulnerabilities_page(
+        &self,
+        page: Option<u64>,
+        per_page: Option<u64>,
+    ) -> Result<Vec<Vulnerability>> {
+        let (page, per_page) = Self::normalize_pagination(page, per_page)?;
         let resp = self
-            .get::<VulnerabilitiesResponse>("/vulnerabilities")
+            .get::<VulnerabilitiesResponse>(&format!(
+                "/vulnerabilities?page={page}&per_page={per_page}"
+            ))
             .await?;
-        Ok(resp.vulnerabilities)
+        Ok(Self::limit_results(resp.vulnerabilities, per_page))
     }
 
     /// Get a specific CVE.
     pub async fn get_cve(&self, cve_id: &str) -> Result<Vulnerability> {
+        validate_cve_id(cve_id)?;
         let resp = self
-            .get::<VulnerabilityResponse>(&format!("/vulnerabilities/{cve_id}"))
+            .get::<VulnerabilityResponse>(&format!("/vulnerabilities/{}", urlencoding(cve_id)))
             .await?;
         Ok(resp.vulnerability)
     }
@@ -259,6 +370,20 @@ impl FleetClient {
 /// Safe URL encoding helper.
 fn urlencoding(s: &str) -> String {
     url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+}
+
+fn validate_cve_id(cve_id: &str) -> Result<()> {
+    let bytes = cve_id.as_bytes();
+    if bytes.len() < 9
+        || !cve_id.starts_with("CVE-")
+        || !bytes[4..8].iter().all(u8::is_ascii_digit)
+        || !bytes[8..]
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+    {
+        anyhow::bail!("cve_id must match CVE-YYYY-IDENTIFIER");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -353,6 +478,38 @@ mod tests {
             timeout_secs: 30,
         };
         config.validate().expect("loopback HTTP should be allowed");
+    }
+
+    #[test]
+    fn test_config_rejects_disabled_tls_for_remote_server() {
+        let config = CliConfig {
+            fleet_url: "https://fleet.example.com".into(),
+            api_token: "valid_token".into(),
+            verify_ssl: false,
+            timeout_secs: 15,
+        };
+        let error = config
+            .validate()
+            .expect_err("remote TLS must remain enabled");
+        assert!(error.contains("only allowed for loopback"), "{error}");
+    }
+
+    #[test]
+    fn test_pagination_has_safe_defaults_and_rejects_unbounded_requests() {
+        assert_eq!(
+            FleetClient::normalize_pagination(None, None).unwrap(),
+            (1, 20)
+        );
+        assert!(FleetClient::normalize_pagination(Some(0), Some(20)).is_err());
+        assert!(FleetClient::normalize_pagination(Some(1), Some(0)).is_err());
+        assert!(FleetClient::normalize_pagination(Some(1), Some(51)).is_err());
+    }
+
+    #[test]
+    fn test_cve_path_identifiers_are_strictly_validated() {
+        assert!(validate_cve_id("CVE-2024-1234").is_ok());
+        assert!(validate_cve_id("CVE-2024-1234/../../config").is_err());
+        assert!(validate_cve_id("CVE-2024-1234?secret=true").is_err());
     }
 
     // -----------------------------------------------------------------------
@@ -845,10 +1002,39 @@ mod tests {
         (format!("http://{address}"), handle)
     }
 
+    async fn spawn_slow_mock(delay: Duration) -> (String, tokio::task::JoinHandle<()>) {
+        use tokio::io::AsyncReadExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("mock listener should bind");
+        let address = listener.local_addr().expect("mock address should exist");
+        let handle = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("mock should accept");
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request).await;
+            tokio::time::sleep(delay).await;
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn test_get_timeout_returns_bounded_error() {
+        let (url, server) = spawn_slow_mock(Duration::from_millis(100)).await;
+        let error =
+            FleetClient::new_test_with_timeout(&url, "test-token", Duration::from_millis(10))
+                .get_version()
+                .await
+                .expect_err("slow API should time out");
+        server.await.expect("mock server should finish");
+        assert!(error.to_string().contains("timed out"), "{error}");
+    }
+
     #[tokio::test]
     async fn test_official_hosts_contract() {
         let body = r#"{"hosts":[{"id":1,"hostname":"host-a","seen_time":"2026-01-01T00:00:00Z","memory":2086899712,"cpu_type":"x86_64","cpu_physical_cores":4}]}"#;
-        let (url, server) = spawn_mock("/api/v1/fleet/hosts", "200 OK", body).await;
+        let (url, server) =
+            spawn_mock("/api/v1/fleet/hosts?page=1&per_page=20", "200 OK", body).await;
         let hosts = FleetClient::new_test(&url, "test-token")
             .list_hosts(None, None, None, None, None, None)
             .await
@@ -861,7 +1047,8 @@ mod tests {
     #[tokio::test]
     async fn test_official_reports_contract() {
         let body = r#"{"queries":[{"id":31,"name":"inventory","query":"select 1"}]}"#;
-        let (url, server) = spawn_mock("/api/v1/fleet/reports", "200 OK", body).await;
+        let (url, server) =
+            spawn_mock("/api/v1/fleet/reports?page=1&per_page=20", "200 OK", body).await;
         let reports = FleetClient::new_test(&url, "test-token")
             .list_reports()
             .await
@@ -885,7 +1072,12 @@ mod tests {
     #[tokio::test]
     async fn test_official_software_titles_contract() {
         let body = r#"{"software_titles":[{"id":2792,"name":"Slack","source":"apps","hosts_count":5,"versions_count":4}]}"#;
-        let (url, server) = spawn_mock("/api/v1/fleet/software/titles", "200 OK", body).await;
+        let (url, server) = spawn_mock(
+            "/api/v1/fleet/software/titles?page=1&per_page=20",
+            "200 OK",
+            body,
+        )
+        .await;
         let software = FleetClient::new_test(&url, "test-token")
             .list_software()
             .await
@@ -918,8 +1110,12 @@ mod tests {
     #[tokio::test]
     async fn test_error_body_is_not_reflected() {
         let body = r#"{"error":"secret upstream content"}"#;
-        let (url, server) =
-            spawn_mock("/api/v1/fleet/reports", "500 Internal Server Error", body).await;
+        let (url, server) = spawn_mock(
+            "/api/v1/fleet/reports?page=1&per_page=20",
+            "500 Internal Server Error",
+            body,
+        )
+        .await;
         let error = FleetClient::new_test(&url, "test-token")
             .list_reports()
             .await

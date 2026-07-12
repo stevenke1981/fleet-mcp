@@ -24,10 +24,16 @@ Pushing a tag such as `v0.1.0` starts `.github/workflows/release.yml`. It valida
 - Bearer header 存在，但 Debug 輸出不洩漏 token。
 - HTTP error body 不會反射到 MCP/model-facing 錯誤內容。
 - URL、token 與 timeout 設定邊界。
+- `FLEET_VERIFY_SSL=false` 僅能用於 loopback；遠端 TLS 關閉會被拒絕。
+- CVE path identifier 驗證會拒絕 `/`, `?`, `#` 等路徑注入字元。
+- 分頁預設 20、上限 50，報告資料最多回傳 50 rows。
+- 所有工具 metadata 標示 `read_only_hint=true`、`destructive_hint=false`。
+- `scripts/install_mcp.py --dry-run` 可驗證 Claude/Cursor 設定合併且預設不寫入 token。
 
 ## Stdio smoke test
 
 使用有效格式但不需要可連線的 Fleet URL 啟動 binary，透過 MCP stdio 依序傳送 `initialize`、`notifications/initialized`、`tools/list`；工具列舉不會呼叫 Fleet API。預期列出 14 個 read-only tools。
+logger 必須寫入 stderr，不得污染 stdout 的 JSON-RPC stream；smoke test 同時檢查每個工具的 `readOnlyHint=true` 與 `destructiveHint=false`。
 
 ## 尚需真實環境驗證
 

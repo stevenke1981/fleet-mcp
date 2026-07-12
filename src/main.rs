@@ -2,7 +2,6 @@ mod config;
 mod fleet;
 mod handler;
 
-use clap::Parser;
 use rmcp::{ServiceExt, transport::stdio};
 use tracing_subscriber::EnvFilter;
 
@@ -14,13 +13,14 @@ use crate::handler::FleetHandler;
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
     // Parse CLI configuration
-    let config = CliConfig::parse();
+    let config = CliConfig::parse_with_timeout_alias();
 
     // Validate configuration
     if let Err(e) = config.validate() {

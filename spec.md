@@ -26,9 +26,13 @@ src/fleet/types.rs   Fleet API response types
 
 - API token 僅放入 HTTP Authorization header，不另存於 `FleetClient`，Debug 一律 redacted。
 - HTTPS required；HTTP only for loopback development。
-- URL 禁止 userinfo、query、fragment；timeout 必須大於零。
+- URL 禁止 userinfo、query、fragment；遠端不得關閉 TLS verification；timeout 預設 15 秒且最多 60 秒。
 - 上游 HTTP error body 不回傳給 MCP client/model context。
 - Endpoint envelope 缺少 required key 時視為契約錯誤，不當成空陣列。
+- 所有工具 metadata 使用 `read_only_hint=true` 與 `destructive_hint=false`；實際 HTTP 層只提供 GET。
+- 所有列表預設 `page=1&per_page=20`，`per_page` 最大 50；輸出使用最小摘要欄位，saved report rows 最大 50。
+- `FLEET_ALLOWED_TOOLS` 可提供 fail-closed 工具白名單；未列出的工具呼叫會被拒絕。
+- CVE path identifier 必須符合 `CVE-YYYY-IDENTIFIER`，不接受 URL path/query 注入字元。
 
 ## Out of scope
 

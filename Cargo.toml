@@ -10,7 +10,7 @@ rust-version = "1.85"
 readme = "README.md"
 keywords = ["mcp", "fleetdm", "device-management", "osquery", "model-context-protocol"]
 categories = ["development-tools", "api-bindings"]
-include = ["/src/**", "/examples/**", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE"]
+include = ["/src/**", "/examples/**", "/scripts/**", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE"]
 
 [dependencies]
 # MCP SDK (official Rust SDK for Model Context Protocol)

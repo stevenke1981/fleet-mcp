@@ -44,9 +44,10 @@ Set configuration through CLI arguments or environment variables. Use a Fleet AP
 | `--url` / `-u` | `FLEET_SERVER_URL` | required | Fleet server base URL |
 | `--token` / `-t` | `FLEET_API_TOKEN` | required | Fleet API token |
 | `--verify-ssl` | `FLEET_VERIFY_SSL` | `true` | Verify TLS certificates |
-| `--timeout` | `FLEET_TIMEOUT` | `30` | Request timeout in seconds |
+| `--timeout` | `FLEET_TIMEOUT` / `MCP_TOOL_TIMEOUT` | `15` | Per-request timeout in seconds (maximum 60) |
+| — | `FLEET_ALLOWED_TOOLS` | all read-only tools | Optional comma-separated fail-closed tool allowlist |
 
-HTTPS is required except for loopback development URLs. URLs containing credentials, query strings, or fragments are rejected. The process does not load `.env` files itself; `.env.example` is a template for shells or launchers that support environment files.
+HTTPS is required except for loopback development URLs. URLs containing credentials, query strings, or fragments are rejected. TLS verification cannot be disabled for remote Fleet servers; `FLEET_VERIFY_SSL=false` is limited to loopback development. The process does not load `.env` files itself; `.env.example` is a template for shells or launchers that support environment files.
 
 PowerShell:
 
@@ -64,6 +65,19 @@ export FLEET_API_TOKEN='replace-with-a-read-only-token'
 ./target/release/fleet-mcp
 ```
 
+The launcher also accepts `MCP_TOOL_TIMEOUT` as an alias for `FLEET_TIMEOUT`. Keep API tokens in the client environment or a secret manager; avoid passing `--token` because command-line arguments can be visible in process listings.
+
+## Install into Claude Desktop or Cursor
+
+The repository includes a dependency-free Python installer that detects the standard Claude Desktop or Cursor config path, merges the `fleet` server entry, and creates a `.bak` backup before writing:
+
+```powershell
+python scripts/install_mcp.py --client claude --binary C:\path\to\fleet-mcp.exe --url https://fleet.example.com
+python scripts/install_mcp.py --client cursor --binary C:\path\to\fleet-mcp.exe --url https://fleet.example.com
+```
+
+It writes a placeholder token by default. Use `--allow-token-write --token ...` only when you accept storing the token in the client JSON file. Use `--dry-run` to inspect the merged JSON without changing anything. The generated `FLEET_ALLOWED_TOOLS` allowlist intentionally excludes configuration and raw report-data tools; adjust it only after reviewing the data exposure.
+
 ## Tools
 
 | Domain | Tools |
@@ -74,7 +88,11 @@ export FLEET_API_TOKEN='replace-with-a-read-only-token'
 | Software and CVEs | `fleet_list_software`, `fleet_list_vulnerabilities`, `fleet_get_cve` |
 | Server | `fleet_get_config`, `fleet_get_version` |
 
-The project intentionally does not expose write operations, live SQL execution, or undocumented osquery-schema routes.
+Every tool is annotated as read-only and non-destructive in MCP metadata. Those annotations are only client hints: the Rust client enforces the boundary by exposing a GET-only request helper, and there are no POST/PUT/PATCH/DELETE or arbitrary SQL methods. Saved report SQL is never executed by this server; `fleet_get_report` exposes it only through the explicit `include_query` opt-in. List tools default to 20 records and reject `per_page` values above 50. Responses use minimal summaries and cap saved-report rows at 50 to reduce context leakage.
+
+The official Fleet REST API documentation does not define a dynamic osquery schema endpoint. This server therefore does not guess an undocumented `fleet_get_osquery_schema` route; use Fleet's documented [osquery table reference](https://fleetdm.com/tables) or a separately approved schema integration instead of sending arbitrary live SQL.
+
+For an additional per-tool permission layer, set `FLEET_ALLOWED_TOOLS` to a comma-separated allowlist. Calls outside that allowlist fail closed. The recommended installer allowlist omits `fleet_get_config` and `fleet_get_report_data`, which can contain sensitive deployment metadata or host query results.
 
 ## MCP client example
 

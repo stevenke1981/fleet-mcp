@@ -27,13 +27,18 @@
 - [x] 增加 `.env.example`、MIT `LICENSE`、正確 `.gitignore`、Cargo.lock 追蹤與 GitHub Actions。
 - [x] 修正 repository URL、CI badge、安裝與設定文件，避免指向無關的既有 Python 專案。
 - [x] CI 在所有 branch push/PR 自動編譯；version tag 自動打包 Linux、Windows、macOS archives、SHA-256 checksums 並建立 GitHub Release。
+- [x] 所有 MCP 工具加上 read-only/non-destructive annotations，HTTP client 僅提供 GET，並以 `FLEET_ALLOWED_TOOLS` 支援 fail-closed 工具白名單。
+- [x] 強制每個列表預設 20、最多 50 筆，輸出改為最小摘要 DTO；saved report rows/columns/value 長度均設上限，避免 token/資料外洩。
+- [x] 將 request timeout 預設降至 15 秒、上限 60 秒，加入 `MCP_TOOL_TIMEOUT` alias 與明確 timeout 錯誤；遠端 TLS 不得關閉驗證。
+- [x] 驗證 CVE path identifier，拒絕路徑/查詢注入；新增 Python 安裝器合併 Claude Desktop/Cursor 設定並預設使用 token placeholder。
+- [x] 將 tracing 輸出改寫 stderr，避免污染 stdio MCP 的 stdout JSON-RPC stream。
 
 ## P2 — 後續增強（不阻擋 v0.1.0）
 
 - [x] MCP stdio acceptance：initialize、tools/list；上游/serialization failure 使用 MCP `is_error` result。
-- [ ] 所有 list tool 加入一致的 page/per_page/meta，並限制單次回應大小。
+- [x] 所有 list tool 加入一致的 page/per_page/meta，並限制單次回應大小。
 - [x] 將 handler 的上游失敗改成正式 MCP `is_error` result，而非成功文字內容。
-- [ ] 以真實 Fleet instance 驗證 config/version；health 與 osquery schema 等未被官方 REST 文件確認的工具已自 v0.1.0 移除。
+- [ ] 以真實 Fleet instance 驗證 config/version；動態 osquery schema endpoint 未被官方 REST 文件確認，因此維持不猜路由、不提供任意 live SQL。
 - [ ] 加入 dependency/license/security audit（cargo-deny 或 cargo-audit）與 release provenance。
 - [ ] 評估 Streamable HTTP transport、寫入操作與 SELECT live report；實作前維持明確 read-only 範圍。
 
