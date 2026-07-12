@@ -7,7 +7,7 @@ A read-only Model Context Protocol (MCP) server for [Fleet Device Management](ht
 
 The server uses stdio transport and exposes 14 read-only tools for hosts, reports, policies, software, vulnerabilities, and Fleet server information. API routes and response envelopes are aligned with Fleet's current official REST API documentation.
 
-## Build
+## Build and install
 
 Rust 1.85 or newer is required.
 
@@ -18,6 +18,8 @@ cargo build --release --locked
 ```
 
 The binary is written to `target/release/fleet-mcp` on Linux/macOS and `target/release/fleet-mcp.exe` on Windows.
+
+GitHub Actions automatically checks every branch push and pull request, builds release binaries for Linux, Windows, and macOS, and publishes them as workflow artifacts. You can also start the workflow manually from the **Actions → CI → Run workflow** menu.
 
 ## Configuration
 
@@ -77,6 +79,25 @@ The project intentionally does not expose write operations, live SQL execution, 
 ```
 
 Never commit a real token. Prefer the client or operating system's secret-management facility when available.
+
+## For AI agents and maintainers
+
+Read [AGENTS.md](AGENTS.md) before editing. It contains the compact repository contract, canonical commands, source map, API invariants, and commit attribution rule.
+
+The normal agent loop is: inspect the relevant symbol, make the smallest focused patch, run the narrowest meaningful Cargo checks, then run the full CI-equivalent commands before committing. Public tool names and Fleet API routes are part of the compatibility surface; update `updates.md`, `README.md`, `test.md`, and `spec.md` when changing them. Keep this server read-only, never log or persist API tokens, and do not add undocumented Fleet routes based on guesses.
+
+Useful local commands:
+
+```text
+cargo fmt --all --check
+cargo check --locked --all-targets --all-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-targets --all-features
+cargo doc --locked --no-deps --all-features
+cargo build --release --locked
+```
+
+For GitHub status, use `gh run list --repo stevenke1981/fleet-mcp` and inspect failed jobs with `gh run view <run-id> --log-failed`.
 
 ## Verification
 
